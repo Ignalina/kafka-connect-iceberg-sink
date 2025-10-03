@@ -1,0 +1,176 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.getindata</groupId>
+  <artifactId>kafka-connect-iceberg-sink-it</artifactId>
+  <version>0.4.1-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <testcontainers.version>1.17.5</testcontainers.version>
+    <junit-jupiter.version>5.8.2</junit-jupiter.version>
+    <postgresql.version>42.3.3</postgresql.version>
+    <minio.version>8.3.6</minio.version>
+    <awaitility.version>4.1.1</awaitility.version>
+  </properties>
+
+  <dependencies>
+    <!-- Core module dependency -->
+    <dependency>
+      <groupId>com.getindata</groupId>
+      <artifactId>kafka-connect-iceberg-sink</artifactId>
+      <version>0.4.1-SNAPSHOT</version>
+    </dependency>
+
+<!-- Spark for tests -->
+<dependency>
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-core_2.13</artifactId>
+    <version>3.5.0</version>
+    <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.apache.spark</groupId>
+    <artifactId>spark-sql_2.13</artifactId>
+    <version>3.5.0</version>
+    <scope>test</scope>
+</dependency>
+
+<!-- Scala standard library -->
+<dependency>
+    <groupId>org.scala-lang</groupId>
+    <artifactId>scala-library</artifactId>
+    <version>2.13.12</version>
+    <scope>test</scope>
+</dependency>
+
+<!-- Debezium test utilities -->
+<dependency>
+    <groupId>io.debezium</groupId>
+    <artifactId>debezium-core</artifactId>
+    <version>3.1.3.Final</version>
+    <scope>test</scope>
+</dependency>
+
+<dependency>
+  <groupId>io.debezium</groupId>
+  <artifactId>debezium-testing-system</artifactId>
+  <version>3.3.0.Final</version>
+  <scope>test</scope>
+</dependency>
+
+
+<!-- AssertJ for fluent assertions -->
+<dependency>
+    <groupId>org.assertj</groupId>
+    <artifactId>assertj-core</artifactId>
+    <version>3.24.2</version>
+    <scope>test</scope>
+</dependency>
+
+<!-- Kafka clients for serializers -->
+<dependency>
+    <groupId>org.apache.kafka</groupId>
+    <artifactId>kafka-clients</artifactId>
+    <version>3.9.1</version>
+    <scope>test</scope>
+</dependency>
+
+    <!-- Testcontainers -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>kafka</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- JUnit -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Other test dependencies -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>${postgresql.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.minio</groupId>
+      <artifactId>minio</artifactId>
+      <version>${minio.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
+      <version>${awaitility.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Compiler -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.10.0</version>
+        <configuration>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+        </configuration>
+      </plugin>
+
+      <!-- Failsafe for SystemTest -->
+      <plugin>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.0.0-M5</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <includes>
+            <include>**/*SystemTest.java</include>
+          </includes>
+        </configuration>
+      </plugin>
+
+      <!-- Surefire for regular tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.0.0-M5</version>
+        <configuration>
+          <trimStackTrace>false</trimStackTrace>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>
