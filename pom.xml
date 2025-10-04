@@ -11,6 +11,5 @@
 
   <modules>
     <module>core</module>
-    <module>it</module>
   </modules>
 </project>

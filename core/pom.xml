@@ -6,9 +6,13 @@
 >
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.getindata</groupId>
-    <artifactId>kafka-connect-iceberg-sink</artifactId>
-    <version>0.4.1-SNAPSHOT</version>
+    <parent>
+        <groupId>com.getindata</groupId>
+        <artifactId>kafka-connect-iceberg-sink</artifactId>
+        <version>0.4.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>core</artifactId>
     <packaging>jar</packaging>
 
     <properties>
@@ -20,15 +24,9 @@
         <iceberg.version>1.10.0</iceberg.version>
         <debezium.version>3.1.3.Final</debezium.version>
         <hadoop.version>3.4.1</hadoop.version>
-        <!-- awssdk.version>2.20.51</awssdk.version -->
         <hive.version>3.1.3</hive.version>
-        <!-- spark 3.2.2_2.13 includes jackson 2.12.3 which requires Jackson Databind version >= 2.12.0 and < 2.13.0 -->
-        <!-- jackson is also provided by kafka connect-runtime -> pinning to the same version -->
         <jackson.version>2.15.0</jackson.version>
-
-        <!-- utils -->
         <slf4j-api.version>1.7.36</slf4j-api.version>
-
 
         <!-- plugins -->
         <maven-compiler-plugin.version>3.10.0</maven-compiler-plugin.version>
@@ -39,6 +37,7 @@
     </properties>
 
     <dependencies>
+        <!-- Kafka Connect -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
@@ -51,6 +50,8 @@
             <version>${kafka.connect.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Jackson -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -63,37 +64,37 @@
             <version>${jackson.version}</version>
             <scope>provided</scope>
         </dependency>
-<!--
-        < dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>lakeformation</artifactId>
-            <version>2.20.45</version>
-        </dependency>
--->
+
+        <!-- Iceberg -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-spark-runtime-3.5_2.13</artifactId>
             <version>${iceberg.version}</version>
         </dependency>
-
         <dependency>
-          <groupId>org.apache.iceberg</groupId>
-          <artifactId>iceberg-aws-bundle</artifactId>
-          <version>${iceberg.version}</version>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-aws-bundle</artifactId>
+            <version>${iceberg.version}</version>
         </dependency>
 
+        <!-- Debezium -->
         <dependency>
             <groupId>io.debezium</groupId>
             <artifactId>debezium-core</artifactId>
             <version>${debezium.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-api</artifactId>
+            <version>${debezium.version}</version>
+        </dependency>
 
+        <!-- Parquet & Hadoop -->
         <dependency>
             <groupId>org.apache.parquet</groupId>
             <artifactId>parquet-hadoop-bundle</artifactId>
             <version>1.16.0</version>
         </dependency>
-
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
@@ -120,65 +121,24 @@
             <version>${hadoop.version}</version>
         </dependency>
 
-        <!--
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>core</artifactId>
-            <version>${awssdk.version}</version>
-            <type>pom</type>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>glue</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>dynamodb</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>kms</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>sts</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>url-connection-client</artifactId>
-            <version>${awssdk.version}</version>
-        </dependency>
-        -->
-
+        <!-- Hive -->
         <dependency>
             <groupId>org.apache.hive</groupId>
             <artifactId>hive-metastore</artifactId>
             <version>${hive.version}</version>
         </dependency>
 
-        <!-- utils -->
+        <!-- Utils -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j-api.version}</version>
         </dependency>
-
-        <!-- test -->
-
-
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -189,9 +149,7 @@
                 </configuration>
             </plugin>
 
-
-
-
+            <!-- Jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -199,53 +157,117 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addDefaultImplementationEntries
-                            >true</addDefaultImplementationEntries>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                     </archive>
                 </configuration>
             </plugin>
 
+            <!-- Copy Debezium JARs early -->
             <plugin>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <configuration>
-                    <descriptors>
-                        <descriptor>src/main/assembly/src.xml</descriptor>
-                    </descriptors>
-                </configuration>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.5.0</version>
                 <executions>
                     <execution>
-                        <id
-                        >make-assembly</id> <!-- this is used for inheritance merges -->
-                        <phase
-                        >package</phase> <!-- bind to the packaging phase -->
+                        <id>copy-debezium</id>
+                        <phase>generate-resources</phase>
                         <goals>
-                            <goal>single</goal>
+                            <goal>copy</goal>
                         </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>io.debezium</groupId>
+                                    <artifactId>debezium-core</artifactId>
+                                    <version>${debezium.version}</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>io.debezium</groupId>
+                                    <artifactId>debezium-api</artifactId>
+                                    <version>${debezium.version}</version>
+                                    <outputDirectory>${project.build.directory}</outputDirectory>
+
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
 
+            <!-- Remove CloudEvents lines from META-INF/services -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>1.8</version>
                 <executions>
                     <execution>
-                        <id>unpack-assembly</id>
+                        <id>remove-cloudevents-lines</id>
                         <phase>package</phase>
                         <configuration>
-                            <target>
-                                <echo message="unpack plugin assembly" />
-                                <unzip dest="target/plugin">
-                                    <fileset dir="${project.build.directory}">
-                                        <filename
-                                            regex="kafka-connect-iceberg-sink-.*-plugin.zip"
-                                        />
-                                    </fileset>
-                                </unzip>
-                            </target>
-                        </configuration>
+<target name="remove-cloudevents">
+    <mkdir dir="${project.build.directory}/tmp/debezium-api"/>
+    <mkdir dir="${project.build.directory}/tmp/debezium-core"/>
+
+    <!-- debezium-api -->
+    <echo message="Processing debezium-api..."/>
+    <available file="${project.build.directory}/debezium-api-3.1.3.Final.jar" property="apiJarExists"/>
+    <fail unless="apiJarExists" message="debezium-api-3.1.3.Final.jar not found"/>
+    <unzip src="${project.build.directory}/debezium-api-3.1.3.Final.jar"
+           dest="${project.build.directory}/tmp/debezium-api"/>
+    <delete failonerror="false">
+        <fileset dir="${project.build.directory}/tmp/debezium-api">
+            <include name="io/debezium/engine/format/CloudEvents.class"/>
+        </fileset>
+    </delete>
+    <jar update="false"
+         destfile="${project.build.directory}/debezium-api-3.1.3.Final.jar"
+         basedir="${project.build.directory}/tmp/debezium-api"/>
+
+
+    <echo message="Processing debezium-core..."/>
+    <available file="${project.build.directory}/debezium-core-3.1.3.Final.jar" property="coreJarExists"/>
+    <fail unless="coreJarExists" message="debezium-core-3.1.3.Final.jar not found"/>
+    <unzip src="${project.build.directory}/debezium-core-3.1.3.Final.jar"
+           dest="${project.build.directory}/tmp/debezium-core"/>
+    <available file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation" property="coreHasServices"/>
+    <fail unless="coreHasServices"
+          message="META-INF/services/org.apache.kafka.connect.transforms.Transformation not found in debezium-core jar"/>
+    <replaceregexp file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation"
+                   match=".*CloudEvents.*"
+                   replace=""
+                   byline="true"/>
+    <delete failonerror="false">
+        <fileset dir="${project.build.directory}/tmp/debezium-core">
+            <include name="io/debezium/converters/CloudEventsConverter.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter$1.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter$2.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter$3.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter$CESchemaBuilder.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter$CEValueBuilder.class"/>
+            <include name="io/debezium/converters/CloudEventsConverterConfig.class"/>
+            <include name="io/debezium/converters/CloudEventsConverterConfig$MetadataSource.class"/>
+            <include name="io/debezium/converters/CloudEventsConverterConfig$MetadataSourceValue.class"/>
+            <include name="io/debezium/converters/spi/CloudEventsMaker.class"/>
+            <include name="io/debezium/converters/spi/CloudEventsMaker$FieldName.class"/>
+            <include name="io/debezium/converters/spi/CloudEventsProvider.class"/>
+            <include name="io/debezium/converters/spi/CloudEventsValidator.class"/>
+            <include name="io/debezium/converters/spi/CloudEventsValidator$1.class"/>
+        </fileset>
+    </delete>
+    <jar update="false"
+         destfile="${project.build.directory}/debezium-core-3.1.3.Final.jar"
+         basedir="${project.build.directory}/tmp/debezium-core"/>
+
+</target>
+
+
+
+
+
+
+                       </configuration>
                         <goals>
                             <goal>run</goal>
                         </goals>
@@ -253,11 +275,36 @@
                 </executions>
             </plugin>
 
+            <!-- Assembly -->
+<plugin>
+    <artifactId>maven-assembly-plugin</artifactId>
+    <version>3.6.0</version>
+    <configuration>
+        <descriptors>
+            <descriptor>src/main/assembly/src.xml</descriptor>
+        </descriptors>
+        <finalName>kafka-connect-iceberg-sink-${project.version}-plugin</finalName>
+        <appendAssemblyId>false</appendAssemblyId>
+        <includeBaseDirectory>false</includeBaseDirectory>
+    </configuration>
+    <executions>
+        <execution>
+            <id>make-assembly</id>
+            <phase>package</phase>
+            <goals>
+                <goal>single</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+
+            <!-- Semver -->
             <plugin>
                 <groupId>io.github.q3769</groupId>
                 <artifactId>semver-maven-plugin</artifactId>
                 <version>${semver-maven-plugin.version}</version>
             </plugin>
+
         </plugins>
     </build>
 
