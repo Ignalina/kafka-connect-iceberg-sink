@@ -1,6 +1,13 @@
 # Revivial of the excelent Kafka Connect Iceberg Sink 
 
+Compiled and test (ing atm) for:
+* Kafka 3.9.1
+* Iceberg 1.10.1
+* Parquet 1.16.0
+* Debezium 3.1.3 FINAL  (Last one aligned for kafka 3.9.1)
+  
 BELOW IS FROM THE ORIGNAL README THAT IS FROZEN
+
 
 # Kafka Connect Iceberg Sink
 
