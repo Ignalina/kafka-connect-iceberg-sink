@@ -20,12 +20,13 @@
         <maven.compiler.target>17</maven.compiler.target>
 
         <!-- versions -->
+        <avro.version>1.11.4</avro.version>
         <kafka.connect.version>3.9.1</kafka.connect.version>
         <iceberg.version>1.10.0</iceberg.version>
         <debezium.version>3.1.3.Final</debezium.version>
         <hadoop.version>3.4.1</hadoop.version>
         <hive.version>3.1.3</hive.version>
-        <jackson.version>2.15.0</jackson.version>
+        <jackson.version>2.16.2</jackson.version>
         <slf4j-api.version>1.7.36</slf4j-api.version>
 
         <!-- plugins -->
@@ -38,6 +39,12 @@
 
     <dependencies>
         <!-- Kafka Connect -->
+        <dependency>
+          <groupId>org.apache.avro</groupId>
+          <artifactId>avro</artifactId>
+          <version>${avro.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-api</artifactId>
@@ -157,7 +164,8 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultImplementationEntries
+                            >true</addDefaultImplementationEntries>
                         </manifest>
                     </archive>
                 </configuration>
@@ -181,13 +189,15 @@
                                     <groupId>io.debezium</groupId>
                                     <artifactId>debezium-core</artifactId>
                                     <version>${debezium.version}</version>
-                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <outputDirectory
+                                    >${project.build.directory}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>io.debezium</groupId>
                                     <artifactId>debezium-api</artifactId>
                                     <version>${debezium.version}</version>
-                                    <outputDirectory>${project.build.directory}</outputDirectory>
+                                    <outputDirectory
+                                    >${project.build.directory}</outputDirectory>
 
                                 </artifactItem>
                             </artifactItems>
@@ -207,58 +217,115 @@
                         <phase>package</phase>
                         <configuration>
 <target name="remove-cloudevents">
-    <mkdir dir="${project.build.directory}/tmp/debezium-api"/>
-    <mkdir dir="${project.build.directory}/tmp/debezium-core"/>
+    <mkdir dir="${project.build.directory}/tmp/debezium-api" />
+    <mkdir dir="${project.build.directory}/tmp/debezium-core" />
 
     <!-- debezium-api -->
-    <echo message="Processing debezium-api..."/>
-    <available file="${project.build.directory}/debezium-api-3.1.3.Final.jar" property="apiJarExists"/>
-    <fail unless="apiJarExists" message="debezium-api-3.1.3.Final.jar not found"/>
-    <unzip src="${project.build.directory}/debezium-api-3.1.3.Final.jar"
-           dest="${project.build.directory}/tmp/debezium-api"/>
+    <echo message="Processing debezium-api..." />
+    <available
+                                    file="${project.build.directory}/debezium-api-3.1.3.Final.jar"
+                                    property="apiJarExists"
+                                />
+    <fail
+                                    unless="apiJarExists"
+                                    message="debezium-api-3.1.3.Final.jar not found"
+                                />
+    <unzip
+                                    src="${project.build.directory}/debezium-api-3.1.3.Final.jar"
+                                    dest="${project.build.directory}/tmp/debezium-api"
+                                />
     <delete failonerror="false">
         <fileset dir="${project.build.directory}/tmp/debezium-api">
-            <include name="io/debezium/engine/format/CloudEvents.class"/>
+            <include name="io/debezium/engine/format/CloudEvents.class" />
         </fileset>
     </delete>
-    <jar update="false"
-         destfile="${project.build.directory}/debezium-api-3.1.3.Final.jar"
-         basedir="${project.build.directory}/tmp/debezium-api"/>
+    <jar
+                                    update="false"
+                                    destfile="${project.build.directory}/debezium-api-3.1.3.Final.jar"
+                                    basedir="${project.build.directory}/tmp/debezium-api"
+                                />
 
 
-    <echo message="Processing debezium-core..."/>
-    <available file="${project.build.directory}/debezium-core-3.1.3.Final.jar" property="coreJarExists"/>
-    <fail unless="coreJarExists" message="debezium-core-3.1.3.Final.jar not found"/>
-    <unzip src="${project.build.directory}/debezium-core-3.1.3.Final.jar"
-           dest="${project.build.directory}/tmp/debezium-core"/>
-    <available file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation" property="coreHasServices"/>
-    <fail unless="coreHasServices"
-          message="META-INF/services/org.apache.kafka.connect.transforms.Transformation not found in debezium-core jar"/>
-    <replaceregexp file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation"
-                   match=".*CloudEvents.*"
-                   replace=""
-                   byline="true"/>
+    <echo message="Processing debezium-core..." />
+    <available
+                                    file="${project.build.directory}/debezium-core-3.1.3.Final.jar"
+                                    property="coreJarExists"
+                                />
+    <fail
+                                    unless="coreJarExists"
+                                    message="debezium-core-3.1.3.Final.jar not found"
+                                />
+    <unzip
+                                    src="${project.build.directory}/debezium-core-3.1.3.Final.jar"
+                                    dest="${project.build.directory}/tmp/debezium-core"
+                                />
+    <available
+                                    file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation"
+                                    property="coreHasServices"
+                                />
+    <fail
+                                    unless="coreHasServices"
+                                    message="META-INF/services/org.apache.kafka.connect.transforms.Transformation not found in debezium-core jar"
+                                />
+    <replaceregexp
+                                    file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.transforms.Transformation"
+                                    match=".*CloudEvents.*"
+                                    replace=""
+                                    byline="true"
+                                />
+    <replaceregexp
+                                    file="${project.build.directory}/tmp/debezium-core/META-INF/services/org.apache.kafka.connect.storage.Converter"
+                                    match=".CloudEventsConverter"
+                                    replace=""
+                                    byline="true"
+                                />
     <delete failonerror="false">
         <fileset dir="${project.build.directory}/tmp/debezium-core">
-            <include name="io/debezium/converters/CloudEventsConverter.class"/>
-            <include name="io/debezium/converters/CloudEventsConverter$1.class"/>
-            <include name="io/debezium/converters/CloudEventsConverter$2.class"/>
-            <include name="io/debezium/converters/CloudEventsConverter$3.class"/>
-            <include name="io/debezium/converters/CloudEventsConverter$CESchemaBuilder.class"/>
-            <include name="io/debezium/converters/CloudEventsConverter$CEValueBuilder.class"/>
-            <include name="io/debezium/converters/CloudEventsConverterConfig.class"/>
-            <include name="io/debezium/converters/CloudEventsConverterConfig$MetadataSource.class"/>
-            <include name="io/debezium/converters/CloudEventsConverterConfig$MetadataSourceValue.class"/>
-            <include name="io/debezium/converters/spi/CloudEventsMaker.class"/>
-            <include name="io/debezium/converters/spi/CloudEventsMaker$FieldName.class"/>
-            <include name="io/debezium/converters/spi/CloudEventsProvider.class"/>
-            <include name="io/debezium/converters/spi/CloudEventsValidator.class"/>
-            <include name="io/debezium/converters/spi/CloudEventsValidator$1.class"/>
+            <include name="io/debezium/converters/CloudEventsConverter.class" />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverter$1.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverter$2.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverter$3.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverter$CESchemaBuilder.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverter$CEValueBuilder.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverterConfig.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverterConfig$MetadataSource.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/CloudEventsConverterConfig$MetadataSourceValue.class"
+                                        />
+            <include name="io/debezium/converters/spi/CloudEventsMaker.class" />
+            <include
+                                            name="io/debezium/converters/spi/CloudEventsMaker$FieldName.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/spi/CloudEventsProvider.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/spi/CloudEventsValidator.class"
+                                        />
+            <include
+                                            name="io/debezium/converters/spi/CloudEventsValidator$1.class"
+                                        />
         </fileset>
     </delete>
-    <jar update="false"
-         destfile="${project.build.directory}/debezium-core-3.1.3.Final.jar"
-         basedir="${project.build.directory}/tmp/debezium-core"/>
+    <jar
+                                    update="false"
+                                    destfile="${project.build.directory}/debezium-core-3.1.3.Final.jar"
+                                    basedir="${project.build.directory}/tmp/debezium-core"
+                                />
 
 </target>
 
@@ -283,7 +350,8 @@
         <descriptors>
             <descriptor>src/main/assembly/src.xml</descriptor>
         </descriptors>
-        <finalName>kafka-connect-iceberg-sink-${project.version}-plugin</finalName>
+        <finalName
+                    >kafka-connect-iceberg-sink-${project.version}-plugin</finalName>
         <appendAssemblyId>false</appendAssemblyId>
         <includeBaseDirectory>false</includeBaseDirectory>
     </configuration>
