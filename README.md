@@ -1,4 +1,4 @@
-# Revivial of the excelent Kafka Connect Iceberg Sink 
+# Revivial of the excellent Kafka Connect Iceberg Sink 
 
 Compiled and test (ing atm) for:
 * Kafka 3.9.1
