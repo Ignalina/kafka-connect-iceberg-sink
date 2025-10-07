@@ -36,29 +36,41 @@
         </dependencySet>
     </dependencySets>
 
-    <fileSets>
-        <!-- keep README/LICENSE etc -->
-        <fileSet>
-            <directory>${project.basedir}</directory>
-            <outputDirectory>${project.artifactId}</outputDirectory>
-            <includes>
-                <include>README*</include>
-                <include>CHANGELOG*</include>
-                <include>CONTRIBUTING*</include>
-                <include>LICENSE*</include>
-            </includes>
-            <useDefaultExcludes>true</useDefaultExcludes>
-        </fileSet>
+<fileSets>
+    <!-- keep README/LICENSE etc -->
+    <fileSet>
+        <directory>${project.basedir}</directory>
+        <outputDirectory>${project.artifactId}</outputDirectory>
+        <includes>
+            <include>README*</include>
+            <include>CHANGELOG*</include>
+            <include>CONTRIBUTING*</include>
+            <include>LICENSE*</include>
+        </includes>
+        <useDefaultExcludes>true</useDefaultExcludes>
+    </fileSet>
 
-        <!-- This is the place where your pruned Debezium JARs (and licenses) will be included -->
-        <fileSet>
-            <directory>${project.build.directory}</directory>
-            <outputDirectory>${project.artifactId}</outputDirectory>
-            <includes>
-                <include>*.jar</include>
-                <include>LICENSE*</include>
-            </includes>
-            <useDefaultExcludes>true</useDefaultExcludes>
-        </fileSet>
-    </fileSets>
+    <!-- Debezium JARs and licenses -->
+    <fileSet>
+        <directory>${project.build.directory}</directory>
+        <outputDirectory>${project.artifactId}/core</outputDirectory>
+        <includes>
+            <include>debezium-*.jar</include>
+            <include>LICENSE*</include>
+        </includes>
+        <useDefaultExcludes>true</useDefaultExcludes>
+    </fileSet>
+
+    <!-- AVRO JARs unpacked from ZIP -->
+<fileSet>
+  <directory>${project.build.directory}/avro_temp</directory>
+  <outputDirectory>/core</outputDirectory>
+  <includes>
+    <include>*.jar</include>
+  </includes>
+</fileSet>
+
+</fileSets>
+
+
 </assembly>
