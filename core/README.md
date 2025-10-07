@@ -1,3 +1,6 @@
+# including confluent community jar.
+https://hub-downloads.confluent.io/api/plugins/confluentinc/kafka-connect-avro-converter/versions/7.9.2/confluentinc-kafka-connect-avro-converter-7.9.2.zip
+
 # Kafka Connect Iceberg Sink
 
 This repository is archived. There is official support for Kafka Connect in Apache Iceberg project https://iceberg.apache.org/docs/latest/kafka-connect/
