@@ -2,7 +2,7 @@
 
 Compiled and test (ing atm) for:
 * Kafka 3.9.1
-* Iceberg 1.10.1
+* Iceberg 1.10.0
 * Parquet 1.16.0
 * Debezium 3.1.3 FINAL  (Last one aligned for kafka 3.9.1)
   
