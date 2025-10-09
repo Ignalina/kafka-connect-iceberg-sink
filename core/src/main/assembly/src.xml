@@ -52,8 +52,9 @@
 
     <!-- Debezium JARs and licenses -->
     <fileSet>
-        <directory>${project.build.directory}</directory>
-        <outputDirectory>${project.artifactId}/core</outputDirectory>
+        <directory>${project.build.directory}/core</directory>
+        <outputDirectory>core</outputDirectory>
+
         <includes>
             <include>debezium-*.jar</include>
             <include>LICENSE*</include>
