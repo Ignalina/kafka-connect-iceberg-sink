@@ -48,6 +48,11 @@ public class SinkRecordToIcebergChangeEventConverter {
 
     public IcebergChangeEvent convert(SinkRecord record) {
         SinkRecord unwrappedRecord = extractNewRecordStateTransformation.apply(record);
+        if (unwrappedRecord == null) {
+            // Tombstone: the transformation is configured with
+            // drop.tombstones=true and returns null. Nothing to write.
+            return null;
+        }
 
         Map<String, Object> detachedBinary = new HashMap<>();
         Object value = unwrappedRecord.value();

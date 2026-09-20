@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +49,7 @@ public class IcebergChangeConsumer {
 
         Map<String, List<IcebergChangeEvent>> result = records.stream()
                 .map(converter::convert)
+                .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(IcebergChangeEvent::destinationTable));
 
         for (Map.Entry<String, List<IcebergChangeEvent>> event : result.entrySet()) {
