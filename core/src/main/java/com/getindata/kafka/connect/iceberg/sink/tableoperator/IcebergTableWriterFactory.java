@@ -57,11 +57,13 @@ public class IcebergTableWriterFactory {
         } else if (icebergTable.spec().isUnpartitioned()) {
             writer = new UnpartitionedDeltaWriter(icebergTable.spec(), format, appenderFactory, fileFactory,
                     icebergTable.io(),
-                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes());
+                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes(),
+                    icebergTable.name());
         } else {
             writer = new PartitionedDeltaWriter(icebergTable.spec(), format, appenderFactory, fileFactory,
                     icebergTable.io(),
-                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes());
+                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes(),
+                    icebergTable.name());
         }
 
         return writer;

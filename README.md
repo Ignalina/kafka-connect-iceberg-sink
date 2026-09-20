@@ -21,6 +21,9 @@ is added in this fork. The upstream connector is archived; these additions are o
 4. **Flush buffer** — Iceberg file size set in bytes and records, not by Kafka poll size;
    BLOB columns bypass the JSON rendering.
 5. **`table.namespace.nuke`** — start over in the lake without touching Kafka.
+6. **Verifying a configuration** — a checklist for whoever reviews the settings.
+7. **Null identifier columns never become equality deletes** — a row whose key column is null
+   is skipped with a WARN instead of killing the task.
 
 All of it is backwards compatible: with an unchanged configuration the connector behaves as
 before, plus the type mapping and the namespace creation. All examples below use made-up names.
@@ -126,6 +129,21 @@ the table location in the object store (Nessie ignores purge, so the sink delete
 table's FileIO). Kafka topics and consumer offsets are not touched: reset the consumer group or
 rename the connector to replay. The token is stored as a namespace property; the same token does
 not nuke again on restart, a new token does. Tables without the prefix are kept.
+
+## 7. Null identifier columns (upsert tables)
+
+A Debezium key column can arrive null in the value (a heavily transformed topic, a table whose
+source key was later nulled). In an upsert table the identifier columns are `required` in the
+Iceberg schema, so such a row can be stored nowhere: the equality delete carries only the
+identifier columns and died with `NullPointerException ... Integer.intValue() because "value" is
+null` in the Parquet column writer, one row killed the task, and the data file would have died the
+same way. Since 0.4.5 a row whose identifier column is null is never written as an equality delete
+and never as a data row either: it is skipped, whatever its op (`c`, `u`, `r` or `d`), and the sink
+logs a WARN naming the table and the column, e.g.
+`Table lake.cdc_shop_orders: identifier column 'id' is null in a row with op 'u' (1 such rows so
+far); ... it is skipped`. The warning is logged on the first such row per column and then every
+10 000th, so a backfill of a million bad rows costs a hundred log lines, not a million. Rows with a
+complete key are unaffected.
 
 ## 6. Verifying a configuration (for whoever reviews the settings)
 
