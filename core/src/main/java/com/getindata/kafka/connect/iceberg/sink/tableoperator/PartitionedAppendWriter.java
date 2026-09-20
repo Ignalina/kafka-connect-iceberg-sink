@@ -9,9 +9,14 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.PartitionedWriter;
+import org.apache.iceberg.io.PartitionedFanoutWriter;
 
-public class PartitionedAppendWriter extends PartitionedWriter<Record> {
+/**
+ * Append writer for partitioned tables. Fanout (one open file per partition seen in the batch), because
+ * CDC batches are in commit order, not partition order: Iceberg's {@code PartitionedWriter} would throw
+ * "Already closed files for partition" as soon as a partition reappears.
+ */
+public class PartitionedAppendWriter extends PartitionedFanoutWriter<Record> {
     private final PartitionKey partitionKey;
     private final InternalRecordWrapper wrapper;
 
