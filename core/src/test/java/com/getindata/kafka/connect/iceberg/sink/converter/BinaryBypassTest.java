@@ -111,6 +111,20 @@ class BinaryBypassTest {
   }
 
   @Test
+  void droppedTombstonesConvertToNull() {
+    // ExtractNewRecordState with drop.tombstones=true returns null for Debezium's post-delete marker
+    Transformation<SinkRecord> dropAll = new Transformation<>() {
+      @Override public SinkRecord apply(SinkRecord r) { return null; }
+      @Override public ConfigDef config() { return new ConfigDef(); }
+      @Override public void close() { }
+      @Override public void configure(Map<String, ?> configs) { }
+    };
+    SinkRecordToIcebergChangeEventConverter c = new SinkRecordToIcebergChangeEventConverter(dropAll,
+        JsonConverterFactory.create(true), JsonConverterFactory.create(false), new IcebergSinkConfiguration(new HashMap<>()));
+    assertNull(c.convert(record()));
+  }
+
+  @Test
   void detachLeavesTheOriginalStructUntouched() {
     SinkRecord r = record();
     Map<String, Object> detached = new HashMap<>();
