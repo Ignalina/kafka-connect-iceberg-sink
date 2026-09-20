@@ -1,6 +1,7 @@
 package com.getindata.kafka.connect.iceberg.sink.tableoperator;
 
 import com.getindata.kafka.connect.iceberg.sink.IcebergSinkConfiguration;
+import com.getindata.kafka.connect.iceberg.sink.TableSettings;
 import com.getindata.kafka.connect.iceberg.sink.IcebergUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -29,6 +30,10 @@ public class IcebergTableWriterFactory {
     }
 
     public BaseTaskWriter<Record> create(Table icebergTable) {
+        return create(icebergTable, TableSettings.defaults(configuration));
+    }
+
+    public BaseTaskWriter<Record> create(Table icebergTable, TableSettings settings) {
 
         FileFormat format = IcebergUtil.getTableFileFormat(icebergTable);
         GenericAppenderFactory appenderFactory = IcebergUtil.getTableAppender(icebergTable);
@@ -38,8 +43,8 @@ public class IcebergTableWriterFactory {
         List<Integer> equalityFieldIds = new ArrayList<>(icebergTable.schema().identifierFieldIds());
 
         BaseTaskWriter<Record> writer;
-        if (icebergTable.schema().identifierFieldIds().isEmpty() || !configuration.isUpsert()) {
-            if (configuration.isUpsert()) {
+        if (icebergTable.schema().identifierFieldIds().isEmpty() || !settings.isUpsert()) {
+            if (settings.isUpsert()) {
                 LOGGER.warn("Table don't have Primary Key defined, upsert is not possible falling back to append!");
             }
             if (icebergTable.spec().isUnpartitioned()) {
@@ -52,11 +57,11 @@ public class IcebergTableWriterFactory {
         } else if (icebergTable.spec().isUnpartitioned()) {
             writer = new UnpartitionedDeltaWriter(icebergTable.spec(), format, appenderFactory, fileFactory,
                     icebergTable.io(),
-                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, configuration.isUpsertKeepDelete());
+                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes());
         } else {
             writer = new PartitionedDeltaWriter(icebergTable.spec(), format, appenderFactory, fileFactory,
                     icebergTable.io(),
-                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, configuration.isUpsertKeepDelete());
+                    Long.MAX_VALUE, icebergTable.schema(), equalityFieldIds, true, settings.isUpsertKeepDeletes());
         }
 
         return writer;

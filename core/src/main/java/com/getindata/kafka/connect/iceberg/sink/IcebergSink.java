@@ -20,6 +20,11 @@ public class IcebergSink extends SinkConnector {
         LOGGER.info("Sink configuration:");
         properties.forEach((key, value) -> LOGGER.info(String.format("%s : %s", key, value)));
         this.properties = properties;
+        IcebergSinkConfiguration configuration = new IcebergSinkConfiguration(properties);
+        if (configuration.getNamespaceNuke() != null && !configuration.getNamespaceNuke().trim().isEmpty()) {
+            // once, in the connector, before any task starts writing
+            NamespaceNuker.nukeIfRequested(configuration, IcebergCatalogFactory.create(configuration));
+        }
     }
 
     @Override

@@ -3,6 +3,8 @@ package com.getindata.kafka.connect.iceberg.sink.tableoperator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.getindata.kafka.connect.iceberg.sink.IcebergChangeEvent;
 import com.getindata.kafka.connect.iceberg.sink.IcebergSinkConfiguration;
+import com.getindata.kafka.connect.iceberg.sink.IcebergUtil;
+import com.getindata.kafka.connect.iceberg.sink.TableSettings;
 import com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
@@ -47,15 +49,20 @@ public class IcebergTableOperator {
      * @param events
      */
     public void addToTable(Table icebergTable, List<IcebergChangeEvent> events) {
+        addToTable(icebergTable, events, TableSettings.defaults(configuration));
+    }
+
+    /** As {@link #addToTable(Table, List)} with the per-table settings (upsert mode, partition column). */
+    public void addToTable(Table icebergTable, List<IcebergChangeEvent> events, TableSettings settings) {
 
         // when operation mode is not upsert deduplicate the events to avoid inserting duplicate row
-        if (configuration.isUpsert() && !icebergTable.schema().identifierFieldIds().isEmpty()) {
+        if (settings.isUpsert() && !icebergTable.schema().identifierFieldIds().isEmpty()) {
             events = deduplicateBatch(events);
         }
 
         if (!configuration.isAllowFieldAddition()) {
             // if field additions not enabled add set of events to table
-            addToTablePerSchema(icebergTable, events);
+            addToTablePerSchema(icebergTable, events, settings);
         } else {
             Map<IcebergChangeEvent.JsonSchema, List<IcebergChangeEvent>> eventsGroupedBySchema =
                     events.stream()
@@ -64,9 +71,10 @@ public class IcebergTableOperator {
 
             for (Map.Entry<IcebergChangeEvent.JsonSchema, List<IcebergChangeEvent>> schemaEvents : eventsGroupedBySchema.entrySet()) {
                 // extend table schema if new fields found
-                applyFieldAddition(icebergTable, schemaEvents.getKey().icebergSchema(configuration.getPartitionColumn()));
+                applyFieldAddition(icebergTable, IcebergUtil.withIdentifierColumns(
+                        schemaEvents.getKey().icebergSchema(settings.getPartitionColumn()), settings));
                 // add set of events to table
-                addToTablePerSchema(icebergTable, schemaEvents.getValue());
+                addToTablePerSchema(icebergTable, schemaEvents.getValue(), settings);
             }
         }
 
@@ -155,14 +163,14 @@ public class IcebergTableOperator {
      * @param icebergTable
      * @param events
      */
-    private void addToTablePerSchema(Table icebergTable, List<IcebergChangeEvent> events) {
+    private void addToTablePerSchema(Table icebergTable, List<IcebergChangeEvent> events, TableSettings settings) {
         // Initialize a task writer to write both INSERT and equality DELETE.
-        BaseTaskWriter<Record> writer = writerFactory.create(icebergTable);
+        BaseTaskWriter<Record> writer = writerFactory.create(icebergTable, settings);
         try {
             for (IcebergChangeEvent e : events) {
                 writer.write(e.asIcebergRecord(icebergTable.schema(),
-                        configuration.getPartitionColumn(),
-                        configuration.getPartitionTimestamp()));
+                        settings.getPartitionColumn(),
+                        settings.getPartitionTimestamp()));
             }
 
             writer.close();

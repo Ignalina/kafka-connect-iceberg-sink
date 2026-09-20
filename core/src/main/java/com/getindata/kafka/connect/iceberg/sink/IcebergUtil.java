@@ -19,11 +19,19 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import org.apache.iceberg.types.Types;
+import org.apache.kafka.common.config.ConfigException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.apache.iceberg.TableProperties.*;
 
@@ -34,38 +42,162 @@ public class IcebergUtil {
   protected static final Logger LOGGER = LoggerFactory.getLogger(IcebergUtil.class);
   protected static final ObjectMapper jsonObjectMapper = new ObjectMapper();
 
+  /** {@code transform(column[,arg])} or a bare column name (identity). */
+  private static final Pattern TRANSFORM = Pattern.compile(
+      "^\\s*(?:(identity|year|month|day|hour|bucket|truncate)\\s*\\(\\s*([^,()\\s]+)\\s*(?:,\\s*(\\d+)\\s*)?\\)|([^,()\\s]+))\\s*$",
+      Pattern.CASE_INSENSITIVE);
+
   public static Table createIcebergTable(Catalog icebergCatalog, TableIdentifier tableIdentifier,
       Schema schema, IcebergSinkConfiguration configuration) {
+    return createIcebergTable(icebergCatalog, tableIdentifier, schema, TableSettings.defaults(configuration),
+        configuration.getFormatVersion());
+  }
+
+  public static Table createIcebergTable(Catalog icebergCatalog, TableIdentifier tableIdentifier,
+      Schema schema, TableSettings settings) {
+    return createIcebergTable(icebergCatalog, tableIdentifier, schema, settings, null);
+  }
+
+  private static Table createIcebergTable(Catalog icebergCatalog, TableIdentifier tableIdentifier,
+      Schema schema, TableSettings settings, String formatVersionOverride) {
+    schema = withIdentifierColumns(schema, settings);
 
     LOGGER.info("Creating table:'{}'\nschema:{}\nrowIdentifier:{}", tableIdentifier, schema,
         schema.identifierFieldNames());
 
-    boolean partition = !configuration.isUpsert();
-    final PartitionSpec ps;
-    if (partition && schema.findField(configuration.getPartitionColumn()) != null) {
-      ps = PartitionSpec.builderFor(schema).day(configuration.getPartitionColumn()).build();
-    } else {
-      ps = PartitionSpec.builderFor(schema).build();
-    }
+    final PartitionSpec ps = partitionSpec(schema, settings);
 
     String formatVersion = "2";
-    if (configuration.getFormatVersion() != null && !"".equals(configuration.getFormatVersion())) {
-      formatVersion = configuration.getFormatVersion();
+    if (formatVersionOverride != null && !"".equals(formatVersionOverride)) {
+      formatVersion = formatVersionOverride;
+    } else if (settings.getTableProperties().get(FORMAT_VERSION) != null) {
+      formatVersion = settings.getTableProperties().get(FORMAT_VERSION);
     }
     return icebergCatalog.buildTable(tableIdentifier, schema)
-        .withProperties(configuration.getIcebergTableConfiguration())
+        .withProperties(settings.getTableProperties())
         .withProperty(FORMAT_VERSION, formatVersion)
-        .withSortOrder(IcebergUtil.getIdentifierFieldsAsSortOrder(schema))
+        .withSortOrder(sortOrder(schema, settings))
         .withPartitionSpec(ps)
         .create();
   }
 
-  private static SortOrder getIdentifierFieldsAsSortOrder(Schema schema) {
-    SortOrder.Builder sob = SortOrder.builderFor(schema);
-    for (String fieldName : schema.identifierFieldNames()) {
-      sob = sob.asc(fieldName);
+  /**
+   * The schema with the rule's {@code identifier-columns} as row identity (marked required), or the
+   * schema unchanged when the rule names none (the Debezium key columns stay the identity).
+   */
+  public static Schema withIdentifierColumns(Schema schema, TableSettings settings) {
+    if (settings.getIdentifierColumns().isEmpty()) {
+      return schema;
     }
+    Set<Integer> ids = new HashSet<>();
+    List<Types.NestedField> columns = new ArrayList<>();
+    for (Types.NestedField column : schema.columns()) {
+      if (settings.getIdentifierColumns().contains(column.name())) {
+        ids.add(column.fieldId());
+        columns.add(column.asRequired());
+      } else {
+        columns.add(column);
+      }
+    }
+    for (String name : settings.getIdentifierColumns()) {
+      if (schema.findField(name) == null) {
+        throw new ConfigException("table.rule." + settings.ruleId() + "." + TableSettings.KEY_IDENTIFIER_COLUMNS,
+            name, "column not found in table schema " + schema.columns().stream().map(Types.NestedField::name).toList());
+      }
+      if (!schema.findField(name).type().isPrimitiveType()) {
+        throw new ConfigException("table.rule." + settings.ruleId() + "." + TableSettings.KEY_IDENTIFIER_COLUMNS,
+            name, "identifier columns must be primitive");
+      }
+    }
+    return new Schema(columns, ids);
+  }
 
+  /**
+   * The partition spec for a new table: the rule's {@code partition} transforms when given, else
+   * {@code day(partition column)} in append mode and unpartitioned in upsert mode.
+   *
+   * <p>Equality deletes are scoped to a partition, so an upsert table must be partitioned on values
+   * that never change for a row (an identifier column, {@code bucket(id,N)}, a business date), never
+   * on {@code __source_ts}.
+   */
+  public static PartitionSpec partitionSpec(Schema schema, TableSettings settings) {
+    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
+    if (settings.getPartition().isEmpty()) {
+      boolean partition = !settings.isUpsert();
+      if (partition && settings.getPartitionColumn() != null && schema.findField(settings.getPartitionColumn()) != null) {
+        builder.day(settings.getPartitionColumn());
+      }
+      return builder.build();
+    }
+    String key = "table.rule." + settings.ruleId() + "." + TableSettings.KEY_PARTITION;
+    for (String entry : settings.getPartition()) {
+      Matcher m = TRANSFORM.matcher(entry);
+      if (!m.matches()) {
+        throw new ConfigException(key, entry,
+            "expected identity(col), year(col), month(col), day(col), hour(col), bucket(col,N), truncate(col,W) or a column name");
+      }
+      String transform = m.group(1) == null ? "identity" : m.group(1).toLowerCase(Locale.ROOT);
+      String column = m.group(1) == null ? m.group(4) : m.group(2);
+      String arg = m.group(3);
+      if (schema.findField(column) == null) {
+        throw new ConfigException(key, entry, "column '" + column + "' not found in table schema "
+            + schema.columns().stream().map(Types.NestedField::name).toList());
+      }
+      if (settings.isUpsert() && column.equals(settings.getPartitionColumn())) {
+        LOGGER.warn("Table rule '{}' partitions an upsert table on '{}': updates whose {} changes will not delete "
+            + "the previous row (equality deletes are partition scoped)", settings.ruleId(), column, column);
+      }
+      switch (transform) {
+        case "identity":
+          builder.identity(column);
+          break;
+        case "year":
+          builder.year(column);
+          break;
+        case "month":
+          builder.month(column);
+          break;
+        case "day":
+          builder.day(column);
+          break;
+        case "hour":
+          builder.hour(column);
+          break;
+        case "bucket":
+          if (arg == null) throw new ConfigException(key, entry, "bucket needs a bucket count: bucket(col,N)");
+          builder.bucket(column, Integer.parseInt(arg));
+          break;
+        case "truncate":
+          if (arg == null) throw new ConfigException(key, entry, "truncate needs a width: truncate(col,W)");
+          builder.truncate(column, Integer.parseInt(arg));
+          break;
+        default:
+          throw new ConfigException(key, entry, "unknown transform " + transform);
+      }
+    }
+    return builder.build();
+  }
+
+  /** The rule's {@code sort-order} ("col asc, col2 desc") or the identifier columns ascending. */
+  public static SortOrder sortOrder(Schema schema, TableSettings settings) {
+    SortOrder.Builder sob = SortOrder.builderFor(schema);
+    if (settings.getSortOrder().isEmpty()) {
+      for (String fieldName : schema.identifierFieldNames()) {
+        sob = sob.asc(fieldName);
+      }
+      return sob.build();
+    }
+    String key = "table.rule." + settings.ruleId() + "." + TableSettings.KEY_SORT_ORDER;
+    for (String entry : settings.getSortOrder()) {
+      String[] parts = entry.trim().split("\\s+");
+      String column = parts[0];
+      if (schema.findField(column) == null) {
+        throw new ConfigException(key, entry, "column '" + column + "' not found in table schema "
+            + schema.columns().stream().map(Types.NestedField::name).toList());
+      }
+      boolean desc = parts.length > 1 && parts[1].equalsIgnoreCase("desc");
+      sob = desc ? sob.desc(column) : sob.asc(column);
+    }
     return sob.build();
   }
 

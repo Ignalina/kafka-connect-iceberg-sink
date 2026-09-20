@@ -4,11 +4,15 @@ import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.apache.kafka.common.config.ConfigDef.Importance.LOW;
 import static org.apache.kafka.common.config.ConfigDef.Importance.MEDIUM;
 import static org.apache.kafka.common.config.ConfigDef.Type.BOOLEAN;
+import static org.apache.kafka.common.config.ConfigDef.Type.INT;
+import static org.apache.kafka.common.config.ConfigDef.Type.LONG;
 import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
 
 public class IcebergSinkConfiguration {
@@ -22,8 +26,17 @@ public class IcebergSinkConfiguration {
     public static final String TABLE_AUTO_CREATE = "table.auto-create";
     public static final String TABLE_SNAKE_CASE = "table.snake-case";
     public static final String RICH_TEMPORAL_TYPES = "rich-temporal-types";
+    public static final String TYPES_UUID_AS_STRING = "types.uuid-as-string";
+    public static final String TYPES_VARIABLE_SCALE_DECIMAL = "types.variable-scale-decimal";
+    public static final String NAMESPACE_AUTO_CREATE = "table.namespace.auto-create";
+    public static final String TABLE_RULES = TableSettings.RULES;
+    public static final String NAMESPACE_NUKE = "table.namespace.nuke";
+    public static final String FLUSH_SIZE = "flush.size";
+    public static final String FLUSH_MAX_BYTES = "flush.max-bytes";
+    public static final String BINARY_BYPASS = "binary.bypass-json";
     public static final String ICEBERG_PREFIX = "iceberg.";
-    public static final String ICEBERG_TABLE_PREFIX = "iceberg.table-default";
+    // with the trailing dot: upstream stripped only "iceberg.table-default" and produced properties like ".write.format.default"
+    public static final String ICEBERG_TABLE_PREFIX = "iceberg.table-default.";
     public static final String CATALOG_NAME = ICEBERG_PREFIX + "name";
     public static final String CATALOG_IMPL = ICEBERG_PREFIX + "catalog-impl";
     public static final String CATALOG_TYPE = ICEBERG_PREFIX + "type";
@@ -54,9 +67,36 @@ public class IcebergSinkConfiguration {
                     "Prefix added to all table names")
             .define(TABLE_SNAKE_CASE, BOOLEAN, false, MEDIUM,
                     "Coerce table names to snake_case")
-            .define(RICH_TEMPORAL_TYPES, BOOLEAN, false, MEDIUM,
-                    "Coerce Debezium Date, MicroTimestamp, ZonedTimestamp, MicroTime, and ZonedTime values " +
-                            "from JSON primitives to their corresponding Iceberg rich types")
+            .define(RICH_TEMPORAL_TYPES, BOOLEAN, true, LOW,
+                    "Deprecated and ignored: Debezium and Connect logical types (Date, Time, Timestamp, " +
+                            "Decimal, Uuid, ...) are always mapped to their Iceberg types")
+            .define(TYPES_UUID_AS_STRING, BOOLEAN, false, LOW,
+                    "When true io.debezium.data.Uuid columns are created as string instead of Iceberg uuid " +
+                            "(for readers that render uuid as binary)")
+            .define(TYPES_VARIABLE_SCALE_DECIMAL, STRING, "string", LOW,
+                    "How io.debezium.data.VariableScaleDecimal (numeric without scale) is stored: 'string' " +
+                            "(lossless plain decimal string) or an integer scale N for decimal(38,N)")
+            .define(NAMESPACE_AUTO_CREATE, BOOLEAN, true, MEDIUM,
+                    "When true and table.auto-create is true, the table namespace is created in the catalog " +
+                            "if it does not exist")
+            .define(NAMESPACE_NUKE, STRING, "", LOW,
+                    "DESTRUCTIVE. A token: at connector start drop every table with table.prefix in table.namespace " +
+                            "from the catalog and delete their files in the object store. Kafka offsets are not " +
+                            "touched. The token is stored on the namespace so the same value does not nuke twice")
+            .define(FLUSH_SIZE, INT, 10000, MEDIUM,
+                    "Records buffered across polls before they are written to Iceberg (one commit per table). " +
+                            "The buffer is also written when flush.max-bytes is reached and on every offset commit")
+            .define(FLUSH_MAX_BYTES, LONG, 256L * 1024 * 1024, MEDIUM,
+                    "Byte budget of the flush buffer (estimated payload size); the buffer is written when " +
+                            "reached, so one 200 MB row flushes alone while small rows fill up to flush.size")
+            .define(BINARY_BYPASS, BOOLEAN, true, LOW,
+                    "Hand plain bytes columns (BLOBs) straight from the Connect record to Iceberg instead of " +
+                            "through the JSON (base64) rendering; saves ~3x the BLOB size in heap per row")
+            .define(TABLE_RULES, STRING, "", MEDIUM,
+                    "Comma separated ids of table.rule.<id>.* blocks in matching order (first match wins). " +
+                            "A rule has a regex over the table name and overrides upsert, upsert.keep-deletes, " +
+                            "identifier-columns, sort-order, partition, partition.column, partition.timestamp " +
+                            "and iceberg.table-default.* for the tables it matches")
             .define(CATALOG_NAME, STRING, "default", MEDIUM,
                     "Iceberg catalog name")
             .define(CATALOG_IMPL, STRING, null, MEDIUM,
@@ -76,10 +116,23 @@ public class IcebergSinkConfiguration {
                     
     private final AbstractConfig parsedConfig;
     private final Map<String, String> properties;
+    private final List<TableSettings.Rule> tableRules;
+    private final Map<String, TableSettings> settingsByTable = new ConcurrentHashMap<>();
 
     public IcebergSinkConfiguration(Map<String, String> properties) {
         this.properties = properties;
         parsedConfig = new AbstractConfig(CONFIG_DEF, properties);
+        tableRules = TableSettings.parseRules(properties);
+    }
+
+    /** The parsed table.rule.<id>.* blocks, in matching order. */
+    public List<TableSettings.Rule> getTableRules() {
+        return tableRules;
+    }
+
+    /** The settings for one table (name without namespace, with prefix): defaults + first matching rule. */
+    public TableSettings forTable(String tableName) {
+        return settingsByTable.computeIfAbsent(tableName, name -> TableSettings.resolve(this, tableRules, name));
     }
 
     public boolean isUpsert() {
@@ -118,8 +171,38 @@ public class IcebergSinkConfiguration {
         return parsedConfig.getBoolean(TABLE_SNAKE_CASE);
     }
 
+    /** @deprecated logical types are always mapped; kept so old configurations still validate. */
+    @Deprecated
     public boolean isRichTemporalTypes() {
-        return parsedConfig.getBoolean(RICH_TEMPORAL_TYPES);
+        return true;
+    }
+
+    public boolean isUuidAsString() {
+        return parsedConfig.getBoolean(TYPES_UUID_AS_STRING);
+    }
+
+    public String getVariableScaleDecimal() {
+        return parsedConfig.getString(TYPES_VARIABLE_SCALE_DECIMAL);
+    }
+
+    public boolean isNamespaceAutoCreate() {
+        return parsedConfig.getBoolean(NAMESPACE_AUTO_CREATE);
+    }
+
+    public String getNamespaceNuke() {
+        return parsedConfig.getString(NAMESPACE_NUKE);
+    }
+
+    public int getFlushSize() {
+        return parsedConfig.getInt(FLUSH_SIZE);
+    }
+
+    public long getFlushMaxBytes() {
+        return parsedConfig.getLong(FLUSH_MAX_BYTES);
+    }
+
+    public boolean isBinaryBypass() {
+        return parsedConfig.getBoolean(BINARY_BYPASS);
     }
 
     public String getCatalogName() {
